@@ -190,16 +190,19 @@ async function maintainStreak() {
     const entryPath = createCommitEntry();
     log(`Created commit entry: ${entryPath}`);
     
-    // Stage the file
+    // Stage the entry file (log file will be added after update)
     log('Staging changes...');
-    const addResult = execCommand(`git add ${entryPath} ${CONFIG.logFile}`);
+    const addResult = execCommand(`git add ${entryPath}`);
     if (!addResult.success) {
         log('Error: Failed to stage files');
         process.exit(1);
     }
     
+    // Calculate streak before committing
+    const newStreakDays = calculateStreak(logData, today);
+    const commitMessage = `${CONFIG.commitMessage} - ${today} (Day ${newStreakDays})`;
+    
     // Create commit
-    const commitMessage = `${CONFIG.commitMessage} - ${today} (Day ${calculateStreak(logData, today)})`;
     log(`Creating commit: ${commitMessage}`);
     const commitResult = execCommand(`git commit -m "${commitMessage}"`);
     
@@ -214,7 +217,6 @@ async function maintainStreak() {
     }
     
     // Update streak log
-    const newStreakDays = calculateStreak(logData, today);
     const updatedLog = {
         lastCommitDate: today,
         totalCommits: logData.totalCommits + 1,
@@ -230,9 +232,15 @@ async function maintainStreak() {
     };
     writeStreakLog(updatedLog);
     
-    // Stage the updated log file
-    execCommand(`git add ${CONFIG.logFile}`);
-    execCommand(`git commit -m "Update streak log - ${today}"`);
+    // Stage and commit the updated log file if it exists
+    const logPath = path.join(process.cwd(), CONFIG.logFile);
+    if (fs.existsSync(logPath)) {
+        execCommand(`git add ${CONFIG.logFile}`);
+        const logCommitResult = execCommand(`git commit -m "Update streak log - ${today}"`);
+        if (!logCommitResult.success) {
+            log('Note: Could not commit log file update (may already be committed)');
+        }
+    }
     
     // Push to remote if enabled
     if (CONFIG.autoPush) {
