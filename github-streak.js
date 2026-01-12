@@ -23,7 +23,10 @@ const CONFIG = {
     commitMessage: 'Maintain GitHub streak',
     branch: 'main', // or 'flow' - change as needed
     autoPush: true,
-    verbose: true
+    verbose: true,
+    // Optional: Set your GitHub PAT here or use GITHUB_TOKEN environment variable
+    // For security, prefer using environment variable: export GITHUB_TOKEN=your_token
+    githubToken: process.env.GITHUB_TOKEN || null
 };
 
 /**
@@ -234,13 +237,36 @@ async function maintainStreak() {
     // Push to remote if enabled
     if (CONFIG.autoPush) {
         log(`Pushing to origin/${currentBranch}...`);
-        const pushResult = execCommand(`git push origin ${currentBranch}`);
+        
+        // Use PAT if configured
+        let pushCommand = `git push origin ${currentBranch}`;
+        if (CONFIG.githubToken) {
+            // Temporarily set remote URL with token
+            const remoteUrl = execCommand('git config --get remote.origin.url', { silent: true });
+            const repoUrl = remoteUrl.success ? remoteUrl.output.trim() : '';
+            
+            if (repoUrl && repoUrl.includes('github.com')) {
+                // Extract repo path from URL
+                const repoMatch = repoUrl.match(/github\.com[\/:](.+?)(?:\.git)?$/);
+                if (repoMatch) {
+                    const repoPath = repoMatch[1];
+                    const tokenUrl = `https://${CONFIG.githubToken}@github.com/${repoPath}`;
+                    pushCommand = `git push ${tokenUrl} ${currentBranch}`;
+                    log('Using PAT for authentication');
+                }
+            }
+        }
+        
+        const pushResult = execCommand(pushCommand, { 
+            env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+        });
         
         if (pushResult.success) {
             log(`✅ Successfully pushed! Streak: ${newStreakDays} days`);
         } else {
             log(`⚠️  Commit created locally but push failed. Streak: ${newStreakDays} days`);
             log('You may need to push manually: git push');
+            log('Or set GITHUB_TOKEN environment variable: export GITHUB_TOKEN=your_token');
         }
     } else {
         log(`✅ Commit created locally. Streak: ${newStreakDays} days`);
