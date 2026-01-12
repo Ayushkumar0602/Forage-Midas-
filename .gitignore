@@ -36,3 +36,8 @@ build/
 
 ### macOS ###
 .DS_Store
+
+### GitHub Streak Script ###
+# Uncomment the next two lines if you don't want to commit streak files
+# streak-entries.md
+# .github-streak-log.json
